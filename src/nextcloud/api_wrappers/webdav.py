@@ -69,7 +69,7 @@ class WebDAV(WithRequester):
         resp.data = files_data if not self.json_output else [each.as_dict() for each in files_data]
         return resp
 
-    def download_file(self, uid, path):
+    def download_file(self, uid, path, download_path, overwrite=False):
         """
         Download file of given user by path
         File will be saved to working directory
@@ -84,6 +84,8 @@ class WebDAV(WithRequester):
         Args:
             uid (str): uid of user
             path (str): file path
+            download_path (str): directory where the files will be downloaded
+            overwrite (bool): overwrite files if the name is the same
 
         Returns:
             None
@@ -91,18 +93,28 @@ class WebDAV(WithRequester):
         additional_url = "/".join([uid, path])
         filename = path.split('/')[-1] if '/' in path else path
         file_data = self.list_folders(uid=uid, path=path, depth=0)
+
         if not file_data:
             raise ValueError("Given path doesn't exist")
+
         file_resource_type = (file_data.data[0].get('resource_type')
                               if self.json_output
                               else file_data.data[0].resource_type)
+
         if file_resource_type == File.COLLECTION_RESOURCE_TYPE:
             raise ValueError("This is a collection, please specify file path")
-        if filename in os.listdir('./'):
+
+        if filename in os.listdir(download_path) and not overwrite:
             raise ValueError("File with such name already exists in this directory")
+
         res = self.requester.download(additional_url)
-        with open(filename, 'wb') as f:
-            f.write(res.data)
+
+        file_path = os.path.join(download_path, filename)
+        with open(file_path, 'wb') as f:
+            if type(res.data) == str:
+                f.write(res.data.encode())
+            else:
+                f.write(res.data)
 
         # get timestamp of downloaded file from file property on Nextcloud
         # If it succeeded, set the timestamp to saved local file
@@ -112,7 +124,7 @@ class WebDAV(WithRequester):
                               else file_data.data[0].last_modified)
         file_timestamp = timestamp_to_epoch_time(file_timestamp_str)
         if isinstance(file_timestamp, int):
-            os.utime(filename, (datetime.now().timestamp(), file_timestamp))
+            os.utime(file_path, (datetime.now().timestamp(), file_timestamp))
 
     def upload_file(self, uid, local_filepath, remote_filepath, timestamp=None):
         """
