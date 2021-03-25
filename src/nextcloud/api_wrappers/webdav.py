@@ -2,6 +2,7 @@
 import re
 import os
 import pathlib
+from urllib.parse import unquote
 
 import xml.etree.ElementTree as ET
 
@@ -92,6 +93,7 @@ class WebDAV(WithRequester):
         """
         additional_url = "/".join([uid, path])
         filename = path.split('/')[-1] if '/' in path else path
+        filename = unquote(filename)
         file_data = self.list_folders(uid=uid, path=path, depth=0)
 
         if not file_data:
